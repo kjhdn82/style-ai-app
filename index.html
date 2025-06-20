@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>스타일 AI 평가</title>
+  <style>
+    body { font-family: sans-serif; text-align: center; padding: 30px; }
+    #preview { max-width: 300px; margin-top: 20px; display: block; margin: auto; }
+    #result { margin-top: 25px; font-size: 1.2em; font-weight: bold; }
+    #desc { margin-top: 10px; color: #555; font-size: 0.95em; }
+  </style>
+</head>
+<body>
+  <h1>📸 나의 스타일 AI 평가</h1>
+  <input type="file" accept="image/*" id="imageInput"><br>
+  <img id="preview" src="" alt="미리보기"><br>
+  <button onclick="predictStyle()">스타일 평가하기</button>
+  <p id="result"></p>
+  <p id="desc"></p>
+
+  <!-- 라이브러리 -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+
+  <script>
+    let model, labels;
+
+    const scoreMap = {
+      "캐주얼": 65,
+      "포멀": 90,
+      "스트릿": 70,
+      "노출 많은 스타일": 35,
+      "보수적인 스타일": 95
+    };
+
+    const descMap = {
+      "캐주얼": "편안하고 일상적인 인상을 줍니다.",
+      "포멀": "격식 있고 단정한 스타일이에요.",
+      "스트릿": "자유롭고 개성 있는 분위기예요.",
+      "노출 많은 스타일": "대담하고 눈길을 끄는 스타일이에요.",
+      "보수적인 스타일": "단정하고 정제된 이미지를 줍니다."
+    };
+
+    // 모델 및 라벨 로딩
+    window.onload = async () => {
+      model = await tf.loadLayersModel('./model/model.json');
+      labels = await fetch('./model/labels.json').then(res => res.json());
+      console.log("✅ 모델 및 라벨 로딩 완료");
+    };
+
+    // 이미지 업로드
+    document.getElementById('imageInput').addEventListener('change', e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = ev => {
+        document.getElementById('preview').src = ev.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+
+    // 스타일 예측
+    async function predictStyle() {
+      if (!model || !labels) {
+        alert("모델이 아직 로드되지 않았어요.");
+        return;
+      }
+
+      const image = document.getElementById('preview');
+      if (!image.src || image.src.includes('blank')) {
+        alert("이미지를 먼저 업로드하세요.");
+        return;
+      }
+
+      const tensor = tf.browser.fromPixels(image)
+        .resizeNearestNeighbor([224, 224])
+        .toFloat()
+        .div(tf.scalar(255))
+        .expandDims(0);
+
+      const preds = await model.predict(tensor).data();
+      const maxIndex = preds.indexOf(Math.max(...preds));
+      const label = labels[maxIndex];
+      const score = scoreMap[label] ?? 50;
+      const desc = descMap[label] ?? "";
+
+      document.getElementById('result').innerText = `예측된 스타일: ${label} (점수: ${score}점)`;
+      document.getElementById('desc').innerText = desc;
+    }
+  </script>
+</body>
+</html>
